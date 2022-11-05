@@ -7,9 +7,12 @@ from segment import tf_segment_label
 import matplotlib.pyplot as plt
 import numpy as np
 from histories_util import *
+from time import time
 
 from tensorflow import keras
 
+
+timedict = {}
 config = tfds.download.DownloadConfig(register_checksums=True)
 dataset, dataset_info = tfds.load('oxford_flowers102', 
                                   split=['train', 'validation', 'test'], 
@@ -54,60 +57,67 @@ data_augmentation = keras.Sequential(
     [keras.layers.RandomFlip("horizontal"), keras.layers.RandomRotation(0.1),]
 )
 
-base_model = keras.applications.ResNet101(
-    weights = 'imagenet',
-    input_shape=(image_size, image_size,3),
-    include_top = False
-)
+model_names = ('Xception', 'VGG16', 'ResNet50', 'ResNet101', 'MobileNet', 'MobileNetV2', 'MobileNetV3Small', 'MobileNetV3Large')
+base_models = (keras.applications.Xception, keras.applications.VGG16, keras.applications.ResNet50, keras.applications.ResNet101, 
+    keras.applications.MobileNet, keras.applications.MobileNetV2, keras.applications.MobileNetV3Small, keras.applications.MobileNetV3Large)
 
-base_model.trainable = False
+for i in range(len(model_names)):
+    base_model = base_models[i](
+        weights = 'imagenet',
+        input_shape=(image_size, image_size,3),
+        include_top = False
+    )
 
-inputs = keras.Input(shape=(image_size, image_size,3))
+    base_model.trainable = False
 
-x = keras.layers.BatchNormalization()(inputs)
+    inputs = keras.Input(shape=(image_size, image_size,3))
 
-x = data_augmentation(x)
+    x = keras.layers.BatchNormalization()(inputs)
 
-x = base_model(x, training = False)
+    x = data_augmentation(x)
 
-x = keras.layers.MaxPooling2D(pool_size = (2,2))(x)
-x = keras.layers.Dropout(0.05)(x)
+    x = base_model(x, training = False)
 
-x = keras.layers.GlobalAveragePooling2D()(x)
-x = keras.layers.Dropout(0.05)(x)
-outputs = keras.layers.Dense(num_classes, activation = 'softmax')(x)
-model = keras.Model(inputs, outputs)
+    x = keras.layers.MaxPooling2D(pool_size = (2,2))(x)
+    x = keras.layers.Dropout(0.05)(x)
 
-
-model.compile(optimizer='adam',
-              loss='sparse_categorical_crossentropy',
-              metrics=['accuracy'])
-
-EPOCHS = 5
-
-history = model.fit(training_batches,
-                    epochs=EPOCHS,
-                    validation_data=validation_batches)
-base_model.trainable = True
-
-model.compile(optimizer=keras.optimizers.Adam(1e-5),
-              loss='sparse_categorical_crossentropy',
-              metrics=['accuracy'])
-
-EPOCHS = 10
+    x = keras.layers.GlobalAveragePooling2D()(x)
+    x = keras.layers.Dropout(0.05)(x)
+    outputs = keras.layers.Dense(num_classes, activation = 'softmax')(x)
+    model = keras.Model(inputs, outputs)
 
 
+    model.compile(optimizer='adam',
+                loss='sparse_categorical_crossentropy',
+                metrics=['accuracy'])
 
-histories = model.fit(training_batches,
-                    epochs=EPOCHS,
-                    validation_data=validation_batches)
+    EPOCHS = 5
+    time_start = time()
+    history = model.fit(training_batches,
+                        epochs=EPOCHS,
+                        validation_data=validation_batches)
+    base_model.trainable = True
 
-histories_saver(histories, "json/transformer_histories.json")
-histories = histories_loader("json/transformer_histories.json")
+    model.compile(optimizer=keras.optimizers.Adam(1e-5),
+                loss='sparse_categorical_crossentropy',
+                metrics=['accuracy'])
 
-results = model.evaluate(testing_batches)
+    EPOCHS = 10
 
-f = open('outputs/resNet101.txt', 'w')
-f.write('loss: ' + results[0])
-f.write('accuracy: ' + results[1])
-f.close()
+
+
+    histories = model.fit(training_batches,
+                        epochs=EPOCHS,
+                        validation_data=validation_batches)
+
+    time_end = time() - time_start
+    histories_saver(histories, "json/" + model_names[i] +".json")
+    histories = histories_loader("json/" + model_names[i] +".json")
+
+    results = model.evaluate(testing_batches)
+
+    f = open('outputs/' + model_names[i] + '.txt', 'w')
+    f.write('loss: ' + results[0])
+    f.write('accuracy: ' + results[1])
+    f.write('Training time: ' + time_end)
+    f.close()
