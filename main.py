@@ -2,8 +2,6 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import json
 
-import segment
-from segment import tf_segment_label
 import matplotlib.pyplot as plt
 import numpy as np
 from histories_util import *
@@ -11,6 +9,10 @@ from time import time
 
 from tensorflow import keras
 
+#Set seed for reproducbility
+seed = 10
+np.random.seed(seed)
+tf.random.set_seed(seed)
 
 timedict = {}
 config = tfds.download.DownloadConfig(register_checksums=True)
@@ -42,7 +44,6 @@ image_size = 224
 def format_image(image, label):
     image = tf.cast(image, tf.float32)
     image = tf.image.resize(image, (image_size, image_size))
-    image /= 255
     return image, label
 
 # training_set = training_set.map(tf_segment_label)
@@ -72,7 +73,18 @@ for i in range(len(model_names)):
 
     inputs = keras.Input(shape=(image_size, image_size,3))
 
-    x = keras.layers.BatchNormalization()(inputs)
+    if model_names[i] == 'ResNet50':
+        x = tf.keras.applications.resnet.preprocess_input(inputs)
+    elif model_names[i] == 'ResNet101':
+        x = tf.keras.applications.resnet.preprocess_input(inputs)
+    elif 'MobileNet' in model_names[i]:
+        x = tf.keras.applications.mobilenet.preprocess_input(inputs)
+    elif model_names[i] == 'VGG16':
+        x = tf.keras.applications.vgg16.preprocess_input(inputs)
+    else:
+        x = tf.keras.applications.xception.preprocess_input(inputs)
+    
+    x = keras.layers.BatchNormalization()(x)
 
     x = data_augmentation(x)
 
@@ -92,11 +104,14 @@ for i in range(len(model_names)):
                 metrics=['accuracy'])
 
     EPOCHS = 5
+    histories = {}
     time_start = time()
     history = model.fit(training_batches,
                         epochs=EPOCHS,
                         validation_data=validation_batches)
     base_model.trainable = True
+
+    histories['Top Layer training'] = history
 
     model.compile(optimizer=keras.optimizers.Adam(1e-5),
                 loss='sparse_categorical_crossentropy',
@@ -106,11 +121,12 @@ for i in range(len(model_names)):
 
 
 
-    histories = model.fit(training_batches,
+    history_2  = model.fit(training_batches,
                         epochs=EPOCHS,
                         validation_data=validation_batches)
 
     time_end = time() - time_start
+    history_2['Full training'] = history_2
     histories_saver(histories, "json/" + model_names[i] +".json")
     histories = histories_loader("json/" + model_names[i] +".json")
 
