@@ -1,0 +1,1 @@
+loss: 0.70accuracy: 0.90Training time: 2836.49
