@@ -77,6 +77,8 @@ for i in range(len(model_names)):
         x = tf.keras.applications.resnet.preprocess_input(inputs)
     elif model_names[i] == 'ResNet101':
         x = tf.keras.applications.resnet.preprocess_input(inputs)
+    elif 'MobileNetV3' in model_names[i]:
+        x = tf.keras.applications.mobilenet_v3.preprocess_input(inputs)
     elif 'MobileNet' in model_names[i]:
         x = tf.keras.applications.mobilenet.preprocess_input(inputs)
     elif model_names[i] == 'VGG16':
@@ -84,17 +86,16 @@ for i in range(len(model_names)):
     else:
         x = tf.keras.applications.xception.preprocess_input(inputs)
     
-    x = keras.layers.BatchNormalization()(x)
 
     x = data_augmentation(x)
 
     x = base_model(x, training = False)
 
     x = keras.layers.MaxPooling2D(pool_size = (2,2))(x)
-    x = keras.layers.Dropout(0.05)(x)
+    x = keras.layers.Dropout(0.1)(x)
 
     x = keras.layers.GlobalAveragePooling2D()(x)
-    x = keras.layers.Dropout(0.05)(x)
+    x = keras.layers.Dropout(0.1)(x)
     outputs = keras.layers.Dense(num_classes, activation = 'softmax')(x)
     model = keras.Model(inputs, outputs)
 
@@ -126,14 +127,14 @@ for i in range(len(model_names)):
                         validation_data=validation_batches)
 
     time_end = time() - time_start
-    history_2['Full training'] = history_2
+    histories['Full training'] = history_2
     histories_saver(histories, "json/" + model_names[i] +".json")
     histories = histories_loader("json/" + model_names[i] +".json")
 
     results = model.evaluate(testing_batches)
 
     f = open('outputs/' + model_names[i] + '.txt', 'w')
-    f.write('loss: ' + results[0])
-    f.write('accuracy: ' + results[1])
-    f.write('Training time: ' + time_end)
+    f.write('loss: {0:.2f}'.format(results[0]))
+    f.write('accuracy: {0:.2f}'.format(results[1]))
+    f.write('Training time: {0:.2f}'.format(time_end))
     f.close()
